@@ -14,7 +14,7 @@ return new class extends Migration
     {
         Schema::create('transactions', function (Blueprint $table) {
             $table->id();
-            $table->foreignIdFor(Item::class)->constrained();
+            $table->foreignIdFor(Item::class)->constrained()->cascadeOnDelete();
             $table->float('qty');
             $table->enum('type', ['in', 'out']);
             $table->enum('status', ['pending', 'success', 'cancelled']);

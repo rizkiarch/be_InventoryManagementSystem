@@ -18,6 +18,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/{id}', [TransactionController::class, 'show']);
         Route::post('/in', [TransactionController::class, 'productIn']);
         Route::post('/out', [TransactionController::class, 'productOut']);
+        Route::put('/{id}', [TransactionController::class, 'updateProduct']);
     });
 
     Route::prefix('reports')->group(function () {

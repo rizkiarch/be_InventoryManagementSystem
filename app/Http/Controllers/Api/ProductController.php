@@ -9,6 +9,7 @@ use App\Models\Stock;
 use Haruncpi\LaravelIdGenerator\IdGenerator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 
 class ProductController extends BaseController
 {
@@ -30,12 +31,9 @@ class ProductController extends BaseController
 
             $query = Item::with('photos');
 
-            if (!empty($search)) {
-                $query->where('name', 'like', "%{$search}%");
-            }
-
             $products = $query->when(!empty($search), function ($q) use ($search) {
-                return $q->where('name', 'like', "%{$search}%");
+                return $q->where('name', 'like', "%{$search}%")
+                    ->orWhere('unique_code', 'like', "%{$search}%");
             })->paginate($perPage, ['*'], 'page', $page);
 
             foreach ($products as $product) {
@@ -145,13 +143,21 @@ class ProductController extends BaseController
                 return $this->notFoundResponse('Item not found');
             }
 
+            $request->validate([
+                'name' => 'nullable|string',
+                'description' => 'nullable|string',
+                'is_active' => 'nullable|boolean',
+                'is_delivery' => 'nullable|boolean',
+                'photos' => 'nullable|array',
+                'photos.*' => 'image|mimes:jpeg,png,jpg,gif|max:2048'
+            ]);
+
+            // Then prepare the data for update
             $data = [
-                'name' => $request->input('name'),
-                'description' => $request->input('description'),
-                'is_active' => $request->input('is_active'),
-                'is_delivery' => $request->input('is_delivery'),
-                'photo' => 'nullable|array',
-                'photo.*' => 'image|mimes:jpeg,png,jpg,gif|max:2048'
+                'name' => $request->input('name', $product->name),
+                'description' => $request->input('description', $product->description),
+                'is_active' => $request->input('is_active', $product->is_active),
+                'is_delivery' => $request->input('is_delivery', $product->is_delivery),
             ];
 
             $data['unique_code'] = $request->input('unique_code', $product->unique_code);
@@ -199,6 +205,14 @@ class ProductController extends BaseController
                 return $this->notFoundResponse('Item not found');
             }
 
+            $oldPhotos = ItemPhoto::where('item_id', $product->id)->get();
+            foreach ($oldPhotos as $oldPhoto) {
+                if (Storage::disk('public')->exists($oldPhoto->photo)) {
+                    Storage::disk('public')->delete($oldPhoto->photo);
+                }
+                $oldPhoto->delete();
+            }
+
             $uploadedPhotos = [];
 
             if ($request->hasFile('photos')) {
@@ -206,16 +220,10 @@ class ProductController extends BaseController
                     $filename = date("Ymd") . '_' . uniqid() . '_' . $product->name . '.' . $file->getClientOriginalExtension();
                     $path = $file->storeAs('uploads/product', $filename, 'public');
 
-                    $photo = ItemPhoto::where('item_id', $product->id)->where('photo', $path)->first();
-
-                    if (!$photo) {
-                        $photo = ItemPhoto::create([
-                            'item_id' => $product->id,
-                            'photo' => $path,
-                        ]);
-                    } else {
-                        $photo->update(['photo' => $path]);
-                    }
+                    $photo = ItemPhoto::create([
+                        'item_id' => $product->id,
+                        'photo' => $path,
+                    ]);
 
                     $uploadedPhotos[] = $photo;
                 }
