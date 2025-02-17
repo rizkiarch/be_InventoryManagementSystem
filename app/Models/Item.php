@@ -26,8 +26,8 @@ class Item extends Model
         return $this->hasMany(ItemPhoto::class);
     }
 
-    public function stock()
+    public function stocks()
     {
-        return $this->belongsTo(Stock::class);
+        return $this->hasMany(Stock::class);
     }
 }

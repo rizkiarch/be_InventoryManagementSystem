@@ -19,6 +19,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/in', [TransactionController::class, 'productIn']);
         Route::post('/out', [TransactionController::class, 'productOut']);
         Route::put('/{id}', [TransactionController::class, 'updateProduct']);
+        Route::put('/{id}/cancel', [TransactionController::class, 'cancelTransaction']);
+        Route::put('/{id}/approve', [TransactionController::class, 'approveTransaction']);
     });
 
     Route::prefix('reports')->group(function () {

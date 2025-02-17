@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Exports\StocksExport;
 use App\Exports\TransactionsExport;
+use App\Http\Controllers\BaseController;
 use App\Http\Controllers\Controller;
 use App\Models\Stock;
 use App\Models\Transaction;
@@ -12,37 +13,58 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Maatwebsite\Excel\Facades\Excel;
 
-class ReportController extends Controller
+class ReportController extends BaseController
 {
     public function transactionReport(Request $request)
     {
         $request->validate([
+            'page' => 'nullable|integer|min:1',
+            'per_page' => 'nullable|integer|min:1',
+            'search' => 'nullable|string',
             'start_date' => 'nullable|date',
             'end_date' => 'nullable|date|after_or_equal:start_date',
         ]);
 
-        $startDate = $request->input('start_date', Carbon::now()
-            ->startOfMonth()
-            ->toDateString());
+        $perPage = $request->input('per_page', Transaction::where('status', 'success')->count());
+        $search = $request->input('search', '');
 
-        $endDate = $request->input('end_date', Carbon::now()
+        $startDate = $request->input('start_date') ?? Carbon::now()
+            ->startOfMonth()
+            ->toDateString();
+        $endDate = $request->input('end_date') ?? Carbon::now()
             ->endOfMonth()
-            ->toDateString());
+            ->toDateString();
 
         $queryTransaction = Transaction::with('item')
             ->whereBetween('created_at', [$startDate, $endDate])
-            ->orderBy('created_at', 'desc')
-            ->get();
+            ->where('status', 'success')
+            ->when($search, function ($query) use ($search) {
+                return $query->whereHas('item', function ($query) use ($search) {
+                    $query->where('name', 'like', '%' . $search . '%')
+                        ->orWhere('unique_code', 'like', '%' . $search . '%');
+                });
+            })
+            ->orderBy('created_at', 'desc');
 
-        $totalProductIn = $queryTransaction->where('type', 'in')->sum('qty');
-        $totalProductOut = $queryTransaction->where('type', 'out')->sum('qty');
+        // Get total counts before pagination
+        $totalProductIn = (clone $queryTransaction)->where('type', 'in')->sum('qty');
+        $totalProductOut = (clone $queryTransaction)->where('type', 'out')->sum('qty');
+
+        // Apply pagination
+        $paginatedData = $queryTransaction->paginate($perPage);
 
         return response()->json([
             'start_date' => $startDate,
             'end_date' => $endDate,
             'total_product_in' => $totalProductIn,
             'total_product_out' => $totalProductOut,
-            'data' => $queryTransaction
+            'current_page' => $paginatedData->currentPage(),
+            'per_page' => $paginatedData->perPage(),
+            'total' => $paginatedData->total(),
+            'last_page' => $paginatedData->lastPage(),
+            'next_page_url' => $paginatedData->nextPageUrl(),
+            'prev_page_url' => $paginatedData->previousPageUrl(),
+            'data' => $paginatedData->items()
         ]);
     }
 
@@ -63,6 +85,7 @@ class ReportController extends Controller
 
         $queryTransaction = Transaction::with('item')
             ->whereBetween('created_at', [$startDate, $endDate])
+            ->where('status', 'success')
             ->get();
 
         $totalMasuk = $queryTransaction->where('type', 'in')->count();
@@ -77,7 +100,7 @@ class ReportController extends Controller
                     <thead>
                         <tr>
                             <th>No</th>
-                            <th>Code Item</th>
+                            <th>Transaction ID</th>
                             <th>Product</th>
                             <th>Type</th>
                             <th>Qty</th>
@@ -87,10 +110,12 @@ class ReportController extends Controller
                     <tbody>";
 
         foreach ($queryTransaction as $index => $trx) {
+            $transactionId = 'TRX' . $trx->item->unique_code . $trx->id;
+
             $html .= "
                         <tr>
                              <td>" . ($index + 1) . "</td>
-                            <td>{$trx->item->unique_code}</td>
+                            <td>{$transactionId}</td>
                             <td>{$trx->item->name}</td>
                             <td>{$trx->type}</td>
                             <td>{$trx->qty}</td>
@@ -131,6 +156,9 @@ class ReportController extends Controller
         $request->validate([
             'start_date' => 'nullable|date',
             'end_date' => 'nullable|date|after_or_equal:start_date',
+            'per_page' => 'nullable|integer|min:1',
+            'page' => 'nullable|integer|min:1',
+            'search' => 'nullable|string',
         ]);
 
         $startDate = $request->input('start_date', Carbon::now()
@@ -141,14 +169,26 @@ class ReportController extends Controller
             ->endOfMonth()
             ->toDateString());
 
-        $stocks = Stock::with('item')
-            ->whereBetween('created_at', [$startDate, $endDate])
-            ->orderBy('created_at', 'desc')
-            ->get();
+        $perPage = $request->input('per_page', 5);
+        $page = $request->input('page', 1);
+        $search = $request->input('search', '');
 
-        $totalQtyIn = $stocks->sum('qty_in');
-        $totalQtyOut = $stocks->sum('qty_out');
-        $totalStock = $stocks->sum('total');
+        $query  = Stock::with('item')
+            ->whereBetween('created_at', [$startDate, $endDate])
+            ->orderBy('created_at', 'desc');
+
+        if (!empty($search)) {
+            $query->whereHas('item', function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                    ->orWhere('unique_code', 'like', "%{$search}%");
+            });
+        }
+
+        $totalQtyIn = $query->sum('qty_in');
+        $totalQtyOut = $query->sum('qty_out');
+        $totalStock = $query->sum('total');
+
+        $stocks = $query->paginate($perPage, ['*'], 'page', $page);
 
         return response()->json([
             'start_date' => $startDate,

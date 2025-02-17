@@ -28,16 +28,25 @@ class TransactionController extends BaseController
             ]);
 
             $data['type'] = 'in';
-            $data['status'] = 'success';
 
             $transaction = Transaction::create($data);
 
             $item = Item::find($request->item_id);
+            if ($data['status'] === 'success') {
+                $stock = Stock::updateOrCreate(
+                    ['item_id' => $item->id],
+                    [
+                        'qty_in' => DB::raw('qty_in + ' . $request->qty),
+                        'total' => DB::raw('total + ' . $request->qty)
+                    ]
+                );
+            }
+
             $stock = Stock::updateOrCreate(
                 ['item_id' => $item->id],
                 [
-                    'qty_in' => DB::raw('qty_in + ' . $request->qty),
-                    'total' => DB::raw('total + ' . $request->qty)
+                    'qty_in' => DB::raw('qty_in + ' . 0),
+                    'total' => DB::raw('total + ' . 0)
                 ]
             );
 
@@ -69,17 +78,28 @@ class TransactionController extends BaseController
 
             $item = Item::find($request->item_id);
             $stock = Stock::where('item_id', $item->id)->first();
+            if ($data['status'] === 'success') {
 
-            if (!$stock || $stock->total < $request->qty) {
-                return response()->json(['message' => 'Stok tidak mencukupi'], 400);
+                if (!$stock || $stock->total < $request->qty) {
+                    return response()->json(['message' => 'Stok tidak mencukupi'], 400);
+                }
+
+                $stock->update([
+                    'qty_out' => DB::raw('qty_out + ' . $request->qty),
+                    'total' => DB::raw('total - ' . $request->qty)
+                ]);
+            } else {
+                if ($stock) {
+                    $stock->update([
+                        'qty_out' => DB::raw('qty_out + ' . 0),
+                        'total' => DB::raw('total - ' . 0)
+                    ]);
+                } else {
+                    return response()->json(['message' => 'Stock tidak ditemukan'], 400);
+                }
             }
 
             $transaction = Transaction::create($data);
-
-            $stock->update([
-                'qty_out' => DB::raw('qty_out + ' . $request->qty),
-                'total' => DB::raw('total - ' . $request->qty)
-            ]);
 
             DB::commit();
 
@@ -109,14 +129,81 @@ class TransactionController extends BaseController
                 'status' => 'nullable|in:pending,success,cancelled'
             ]);
 
+            $oldStatus = $transaction->status;
             $oldType = $transaction->type;
             $oldQty = $transaction->qty;
+
+            $newStatus = $request->input('status', $transaction->status);
+            $newType = $request->input('type', $transaction->type);
+            $newQty = $request->input('qty', $transaction->qty);
+
+            $item = Item::find($request->input('item_id', $transaction->item_id));
+            $stock = Stock::where('item_id', $item->id)->first();
+
+            if (!$stock) {
+                return $this->errorResponse('Stock record not found for this item', 400);
+            }
+
+            if ($oldStatus === 'success') {
+                if ($oldType === 'in') {
+                    $stock->qty_in -= $oldQty;
+                    $stock->total -= $oldQty;
+                } else {
+                    $stock->qty_out -= $oldQty;
+                    $stock->total += $oldQty;
+                }
+            }
+
+            if ($newStatus === 'success') {
+                if ($newType === 'out' && $stock->total < $newQty) {
+                    DB::rollBack();
+                    return $this->errorResponse('Insufficient stock', 400);
+                }
+
+                if ($newType === 'in') {
+                    $stock->qty_in += $newQty;
+                    $stock->total += $newQty;
+                } else {
+                    $stock->qty_out += $newQty;
+                    $stock->total -= $newQty;
+                }
+            }
+
             $transaction->update([
                 'item_id' => $request->input('item_id', $transaction->item_id),
-                'qty' => $request->input('qty', $transaction->qty),
-                'type' => $request->input('type', $transaction->type),
-                'status' => $request->input('status', $transaction->status),
+                'qty' => $newQty,
+                'type' => $newType,
+                'status' => $newStatus,
             ]);
+
+            if ($oldStatus === 'success' || $newStatus === 'success') {
+                $stock->save();
+            }
+
+            DB::commit();
+            return $this->successResponse($transaction, 'Transaction created successfully');
+        } catch (\Throwable $th) {
+            DB::rollBack();
+            return $this->errorResponse('Terjadi kesalahan', $th->getMessage(), 400);
+        }
+    }
+
+    public function approveTransaction($id)
+    {
+        if (!$this->hasPermission('*.update')) {
+            return $this->errorResponse('Unauthorized', 403);
+        }
+
+        DB::beginTransaction();
+        try {
+            $transaction = Transaction::find($id);
+            if (!$transaction) {
+                return $this->notFoundResponse('Transaction not found');
+            }
+
+            if ($transaction->status !== 'pending') {
+                return $this->errorResponse('Only pending transactions can be marked as success', 400);
+            }
 
             $item = Item::find($transaction->item_id);
             $stock = Stock::where('item_id', $item->id)->first();
@@ -125,31 +212,69 @@ class TransactionController extends BaseController
                 return $this->errorResponse('Stock record not found for this item', 400);
             }
 
-            if ($oldType === 'in') {
-                $stock->qty_in -= $oldQty;
-                $stock->total -= $oldQty;
-            } else {
-                $stock->qty_out -= $oldQty;
-                $stock->total += $oldQty;
-            }
-
             if ($transaction->type === 'out' && $stock->total < $transaction->qty) {
-                DB::rollBack();
                 return $this->errorResponse('Insufficient stock', 400);
             }
 
             if ($transaction->type === 'in') {
-                $stock->qty_in += $transaction->qty;
-                $stock->total += $transaction->qty;
+                $stock->update([
+                    'qty_in' => DB::raw('qty_in + ' . $transaction->qty),
+                    'total' => DB::raw('total + ' . $transaction->qty)
+                ]);
             } else {
-                $stock->qty_out += $transaction->qty;
-                $stock->total -= $transaction->qty;
+                $stock->update([
+                    'qty_out' => DB::raw('qty_out + ' . $transaction->qty),
+                    'total' => DB::raw('total - ' . $transaction->qty)
+                ]);
             }
 
-            $stock->save();
+            $transaction->update(['status' => 'success']);
 
             DB::commit();
-            return $this->successResponse($transaction, 'Transaction created successfully');
+            return $this->successResponse($transaction, 'Transaction marked as success');
+        } catch (\Throwable $th) {
+            DB::rollBack();
+            return $this->errorResponse('Terjadi kesalahan', $th->getMessage(), 400);
+        }
+    }
+
+    public function cancelTransaction($id)
+    {
+        if (!$this->hasPermission('*.update')) {
+            return $this->errorResponse('Unauthorized', 403);
+        }
+
+        DB::beginTransaction();
+        try {
+            $transaction = Transaction::find($id);
+            if (!$transaction) {
+                return $this->notFoundResponse('Transaction not found');
+            }
+
+            if ($transaction->status === 'success') {
+                $stock = Stock::where('item_id', $transaction->item_id)->first();
+
+                if (!$stock) {
+                    return $this->errorResponse('Stock record not found for this item', 400);
+                }
+
+                if ($transaction->type === 'in') {
+                    $stock->update([
+                        'qty_in' => DB::raw('qty_in - ' . $transaction->qty),
+                        'total' => DB::raw('total - ' . $transaction->qty)
+                    ]);
+                } else { // type is 'out'
+                    $stock->update([
+                        'qty_out' => DB::raw('qty_out - ' . $transaction->qty),
+                        'total' => DB::raw('total + ' . $transaction->qty)
+                    ]);
+                }
+            }
+
+            $transaction->update(['status' => 'cancelled']);
+
+            DB::commit();
+            return $this->successResponse($transaction, 'Transaction cancelled successfully');
         } catch (\Throwable $th) {
             DB::rollBack();
             return $this->errorResponse('Terjadi kesalahan', $th->getMessage(), 400);
@@ -167,7 +292,7 @@ class TransactionController extends BaseController
             $page = request()->input('page', 1);
             $search = request()->input('search', '');
 
-            $query = Transaction::with('item', 'item.photos');
+            $query = Transaction::with('item', 'item.photos')->orderBy('created_at', 'desc');
 
             if (!empty($search)) {
                 $query = $query->whereHas('item', function ($q) use ($search) {
@@ -177,7 +302,14 @@ class TransactionController extends BaseController
 
             $transactions = $query->paginate($perPage, ['*'], 'page', $page);
 
-            return $this->successResponse($transactions, 'Success');
+            $transactionsIn = Transaction::where('type', 'in')->count();
+            $transactionsOut = Transaction::where('type', 'out')->count();
+
+            return $this->successResponse([
+                'transactions' => $transactions,
+                'transactionsIn' => $transactionsIn,
+                'transactionsOut' => $transactionsOut
+            ], 'Success');
         } catch (\Throwable $th) {
             return $this->errorResponse('Error', $th->getMessage(), 400);
         }

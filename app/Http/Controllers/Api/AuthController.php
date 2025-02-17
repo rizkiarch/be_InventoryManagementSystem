@@ -40,8 +40,12 @@ class AuthController extends Controller
         try {
             if (Auth::attempt(['email' => $request->email, 'password' => $request->password])) {
                 $user = Auth::user();
+
+                $role = $user->getRoleNames();
+
                 $success['token'] =  $user->createToken('api_token')->plainTextToken;
                 $success['name'] =  $user->name;
+                $success['role'] =  $role;
 
                 return response()->json($success, 200);
             }

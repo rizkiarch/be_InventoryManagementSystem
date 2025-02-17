@@ -29,7 +29,7 @@ class ProductController extends BaseController
             $page = $request->input('page', 1);
             $search = $request->input('search', '');
 
-            $query = Item::with('photos');
+            $query = Item::with('photos', 'transactions');
 
             $products = $query->when(!empty($search), function ($q) use ($search) {
                 return $q->where('name', 'like', "%{$search}%")
