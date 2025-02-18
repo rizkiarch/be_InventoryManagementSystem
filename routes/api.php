@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\GeminiController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\QrCodeController;
 use App\Http\Controllers\Api\ReportController;
@@ -31,6 +32,15 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('stock', [ReportController::class, 'stockReport']);
         Route::get('stock/export-pdf', [ReportController::class, 'stockToPdf']);
         Route::get('stock/export-excel', [ReportController::class, 'stockToExcel']);
+        Route::get('product/count', [ReportController::class, 'productCount']);
+        Route::get('user/count', [ReportController::class, 'userCount']);
+    });
+
+    Route::prefix('gemini')->group(function () {
+        Route::get('results', [GeminiController::class, 'getGeminiResults']);
+        Route::get('results/latest', [GeminiController::class, 'latest']);
+        Route::get('results/{result}', [GeminiController::class, 'show']);
+        Route::get('results/prompt', [GeminiController::class, 'promptGemini']);
     });
 
     Route::get('qr-generate', [QrCodeController::class, 'generate']);

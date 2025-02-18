@@ -8,10 +8,11 @@ use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
 use Maatwebsite\Excel\Concerns\WithStyles;
+use Maatwebsite\Excel\Concerns\WithTitle;
 use PhpOffice\PhpSpreadsheet\Style\Border;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 
-class TransactionsExport implements FromCollection, WithHeadings, WithMapping, WithStyles, ShouldAutoSize
+class TransactionsExport implements FromCollection, WithHeadings, WithMapping, WithStyles, ShouldAutoSize, WithTitle
 {
     protected $startDate;
     protected $endDate;
@@ -40,7 +41,6 @@ class TransactionsExport implements FromCollection, WithHeadings, WithMapping, W
             'Item Name',
             'Transaction Type',
             'Quantity',
-            'Type',
             'Date',
         ];
     }
@@ -92,10 +92,11 @@ class TransactionsExport implements FromCollection, WithHeadings, WithMapping, W
             ],
         ]);
 
-        $sheet->getStyle('C1:G' . ($sheet->getHighestRow()))->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+        $sheet->getStyle('D1:G' . ($sheet->getHighestRow()))->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
 
         $sheet->getStyle('A1:G' . ($sheet->getHighestRow()))->getProtection()->setLocked(\PhpOffice\PhpSpreadsheet\Style\Protection::PROTECTION_PROTECTED);
         $sheet->getProtection()->setSheet(true);
+        $sheet->getProtection()->setPassword('ikay');
 
         foreach (range('A', 'G') as $columnID) {
             $sheet->getColumnDimension($columnID)->setAutoSize(true);
@@ -107,7 +108,7 @@ class TransactionsExport implements FromCollection, WithHeadings, WithMapping, W
     /**
      * Set the sheet name to 'Transactions Reports'
      */
-    public function sheetTitle(): string
+    public function title(): string
     {
         return 'Transactions Reports';
     }

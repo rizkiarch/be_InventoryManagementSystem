@@ -6,8 +6,10 @@ use App\Exports\StocksExport;
 use App\Exports\TransactionsExport;
 use App\Http\Controllers\BaseController;
 use App\Http\Controllers\Controller;
+use App\Models\Item;
 use App\Models\Stock;
 use App\Models\Transaction;
+use App\Models\User;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -17,6 +19,10 @@ class ReportController extends BaseController
 {
     public function transactionReport(Request $request)
     {
+        if (!$this->hasPermission('*.read')) {
+            return $this->errorResponse('Unauthorized', 403);
+        }
+
         $request->validate([
             'page' => 'nullable|integer|min:1',
             'per_page' => 'nullable|integer|min:1',
@@ -36,7 +42,7 @@ class ReportController extends BaseController
             ->toDateString();
 
         $queryTransaction = Transaction::with('item')
-            ->whereBetween('created_at', [$startDate, $endDate])
+            ->whereBetween('updated_at', [$startDate, $endDate])
             ->where('status', 'success')
             ->when($search, function ($query) use ($search) {
                 return $query->whereHas('item', function ($query) use ($search) {
@@ -44,13 +50,11 @@ class ReportController extends BaseController
                         ->orWhere('unique_code', 'like', '%' . $search . '%');
                 });
             })
-            ->orderBy('created_at', 'desc');
+            ->orderBy('updated_at', 'desc');
 
-        // Get total counts before pagination
         $totalProductIn = (clone $queryTransaction)->where('type', 'in')->sum('qty');
         $totalProductOut = (clone $queryTransaction)->where('type', 'out')->sum('qty');
 
-        // Apply pagination
         $paginatedData = $queryTransaction->paginate($perPage);
 
         return response()->json([
@@ -70,6 +74,10 @@ class ReportController extends BaseController
 
     public function transactionToPdf(Request $request)
     {
+        if (!$this->hasPermission('*.read')) {
+            return $this->errorResponse('Unauthorized', 403);
+        }
+
         $request->validate([
             'start_date' => 'nullable|date',
             'end_date' => 'nullable|date|after_or_equal:start_date',
@@ -86,6 +94,7 @@ class ReportController extends BaseController
         $queryTransaction = Transaction::with('item')
             ->whereBetween('created_at', [$startDate, $endDate])
             ->where('status', 'success')
+            ->orderBy('created_at', 'desc')
             ->get();
 
         $totalMasuk = $queryTransaction->where('type', 'in')->count();
@@ -135,6 +144,10 @@ class ReportController extends BaseController
 
     public function transactionToExcel(Request $request)
     {
+        if (!$this->hasPermission('*.read')) {
+            return $this->errorResponse('Unauthorized', 403);
+        }
+
         $request->validate([
             'start_date' => 'nullable|date',
             'end_date' => 'nullable|date|after_or_equal:start_date',
@@ -153,6 +166,10 @@ class ReportController extends BaseController
 
     public function StockReport(Request $request)
     {
+        if (!$this->hasPermission('*.read')) {
+            return $this->errorResponse('Unauthorized', 403);
+        }
+
         $request->validate([
             'start_date' => 'nullable|date',
             'end_date' => 'nullable|date|after_or_equal:start_date',
@@ -161,21 +178,24 @@ class ReportController extends BaseController
             'search' => 'nullable|string',
         ]);
 
-        $startDate = $request->input('start_date', Carbon::now()
-            ->startOfMonth()
-            ->toDateString());
-
-        $endDate = $request->input('end_date', Carbon::now()
-            ->endOfMonth()
-            ->toDateString());
-
-        $perPage = $request->input('per_page', 5);
+        $perPage = $request->input('per_page', Transaction::where('status', 'success')->count());
         $page = $request->input('page', 1);
         $search = $request->input('search', '');
 
-        $query  = Stock::with('item')
-            ->whereBetween('created_at', [$startDate, $endDate])
-            ->orderBy('created_at', 'desc');
+        $startDate = $request->input('start_date') ?? Carbon::now()
+            ->startOfMonth()
+            ->toDateString();
+        $endDate = $request->input('end_date') ?? Carbon::now()
+            ->endOfMonth()
+            ->toDateString();
+
+        // $query  = Stock::with('item')
+        //     ->whereBetween('stocks.updated_at', [$startDate, $endDate])
+        //     ->join('items', 'stocks.item_id', '=', 'items.id')
+        //     ->orderBy('items.name', 'asc');
+        $query  = Stock::with('item', 'item.transactions')
+            ->whereBetween('updated_at', [$startDate, $endDate])
+            ->orderBy('updated_at', 'desc');
 
         if (!empty($search)) {
             $query->whereHas('item', function ($q) use ($search) {
@@ -202,6 +222,10 @@ class ReportController extends BaseController
 
     public function stockToPdf(Request $request)
     {
+        if (!$this->hasPermission('*.read')) {
+            return $this->errorResponse('Unauthorized', 403);
+        }
+
         $request->validate([
             'start_date' => 'nullable|date',
             'end_date' => 'nullable|date|after_or_equal:start_date',
@@ -216,7 +240,8 @@ class ReportController extends BaseController
             ->toDateString());
 
         $stocks = Stock::with('item')
-            ->whereBetween('created_at', [$startDate, $endDate])
+            ->whereBetween('updated_at', [$startDate, $endDate])
+            ->orderBy('updated_at', 'desc')
             ->get();
 
         $totalQtyIn = $stocks->sum('qty_in');
@@ -233,7 +258,7 @@ class ReportController extends BaseController
                 <thead>
                 <tr>
                     <th>No</th>
-                    <th>Code Item</th>
+                    <th>Stock ID</th>
                     <th>Product</th>
                     <th>Qty In</th>
                     <th>Qty Out</th>
@@ -244,15 +269,16 @@ class ReportController extends BaseController
                 <tbody>";
 
         foreach ($stocks as $index => $stock) {
+            $transactionId = 'TRXS' . $stock->item->unique_code . $stock->id;
             $html .= "
                 <tr>
                     <td>" . ($index + 1) . "</td>
-                    <td>{$stock->item->unique_code}</td>
+                    <td>{$transactionId}</td>
                     <td>{$stock->item->name}</td>
                     <td>{$stock->qty_in}</td>
                     <td>{$stock->qty_out}</td>
                     <td>{$stock->total}</td>
-                    <td>{$stock->created_at->format('Y-m-d')}</td>
+                    <td>{$stock->updated_at->format('Y-m-d')}</td>
                 </tr>";
         }
 
@@ -268,6 +294,10 @@ class ReportController extends BaseController
 
     public function stockToExcel(Request $request)
     {
+        if (!$this->hasPermission('*.read')) {
+            return $this->errorResponse('Unauthorized', 403);
+        }
+
         $request->validate([
             'start_date' => 'nullable|date',
             'end_date' => 'nullable|date|after_or_equal:start_date',
@@ -282,5 +312,31 @@ class ReportController extends BaseController
             ->toDateString());
 
         return Excel::download(new StocksExport($startDate, $endDate), "stock-report.$startDate-$endDate.xlsx");
+    }
+
+    public function productCount(Request $request)
+    {
+        if (!$this->hasPermission('*.read')) {
+            return $this->errorResponse('Unauthorized', 403);
+        }
+
+        $totalProduct = Item::all()->count();
+
+        return response()->json([
+            'total_product' => $totalProduct
+        ]);
+    }
+
+    public function userCount(Request $request)
+    {
+        if (!$this->hasPermission('*.read')) {
+            return $this->errorResponse('Unauthorized', 403);
+        }
+
+        $totalUser = User::all()->count();
+
+        return response()->json([
+            'total_user' => $totalUser
+        ]);
     }
 }
