@@ -41,6 +41,7 @@ class TransactionsExport implements FromCollection, WithHeadings, WithMapping, W
             'Item Name',
             'Transaction Type',
             'Quantity',
+            'Status',
             'Date',
         ];
     }

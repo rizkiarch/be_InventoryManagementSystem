@@ -80,9 +80,28 @@ class ProcessGemini extends Command
         5️⃣ **KPI Utama** – Metrik mana yang perlu dipantau untuk meningkatkan efektivitas manajemen inventory?
         6️⃣ **Strategi Ke Depan** – Rekomendasi actionable untuk meningkatkan operasional dan profitabilitas.
 
-        🔍 **Tolong berikan analisis yang berbasis data, insight yang tajam, serta rekomendasi strategis yang dapat langsung diterapkan.**
+        🔍 **Sebagai seorang Bisnis Analisis, Tolong berikan analisis yang berbasis data, insight yang tajam, serta rekomendasi strategis yang dapat langsung diterapkan.**
         Fokus pada efisiensi bisnis dan potensi pertumbuhan jangka panjang.
 
-        #Tolong gunakan Format yang sudah diberikan  1️⃣ 2️⃣ 3️⃣ 4️⃣ 5️⃣ 6️⃣";
+        Tolong Gunakan Format agar mudah ditampilkan di FrontEnd seperti berikut
+        ### 📊 **Ringkasan Data**
+        ✅ **Total Produk Masuk:**
+        ✅ **Total Produk Keluar:**
+        ✅ **Sisa Stok Saat Ini:**
+        ✅ **Product Stock Terbanyak:**
+        ✅ **Product Transaksi Terbanyak:**
+
+        ### 🎯 **Tujuan Analisis**
+        1️⃣ **Tren Inventory:**
+        2️⃣ **Insight Performa:**
+        3️⃣ **Optimalisasi Stok:**
+        4️⃣ **Risiko & Peluang:**
+        5️⃣ **KPI Utama:**
+        6️⃣ **Strategi Ke Depan:**
+        ### 📋 **Kesimpulan**
+        🔍 **Analisis Data:**
+        📈 **Rekomendasi:**
+
+        ";
     }
 }

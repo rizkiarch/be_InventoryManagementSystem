@@ -1,0 +1,40 @@
+services:
+  app:
+    build:
+      context: ./
+      dockerfile: Dockerfile
+    image: directory-app-laravel-image
+    container_name: directory-app
+    networks:
+      - laravel_network
+    ports:
+      - "8888:8000"
+    entrypoint: ["supervisord", "-c", "/etc/supervisor/supervisord.conf"]
+    volumes:
+      - ./docker/php/php.ini:/usr/local/etc/php/php.ini
+      - ./docker/caddy/Caddyfile:/etc/caddy/Caddyfile
+
+  db:
+    image: mysql:8.0
+    container_name: directory-app-db
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE}
+      MYSQL_USER: ${DB_USERNAME}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - dbdata:/var/lib/mysql
+      - ./docker/mysql/my.cnf:/etc/mysql/my.cnf
+    ports:
+      - "3306:3306"
+    networks:
+      - laravel_network
+
+networks:
+  laravel_network:
+    driver: bridge
+
+volumes:
+  dbdata:
+    driver: local

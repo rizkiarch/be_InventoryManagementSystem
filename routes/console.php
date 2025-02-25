@@ -9,4 +9,4 @@ Artisan::command('inspire', function () {
 
 Schedule::call(function (Schedule $schedule) {
     $schedule->command('gemini:process');
-})->everyMinute();
+})->dailyAt('08:00');

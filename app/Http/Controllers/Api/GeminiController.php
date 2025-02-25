@@ -47,7 +47,6 @@ class GeminiController extends BaseController
                 ->orderBy('created_at', 'desc')
                 ->paginate($perPage);
 
-
             return $this->successResponse($query, 'Gemini results retrieved successfully');
         } catch (\Throwable $th) {
             return $this->errorResponse('', $th->getMessage(), 400);
@@ -61,6 +60,42 @@ class GeminiController extends BaseController
 
     public function latest()
     {
+        // $search = '';
+
+        // $startDate = Carbon::now()
+        //     ->startOfMonth();
+
+
+        // $endDate = Carbon::now();
+
+
+        // $queryTransaction = Transaction::with('item')
+        //     ->whereBetween('updated_at', [$startDate, $endDate])
+        //     ->where('status', 'success')
+        //     // ->when($search, function ($query) use ($search) {
+        //     //     return $query->whereHas('item', function ($query) use ($search) {
+        //     //         $query->where('name', 'like', '%' . $search . '%')
+        //     //             ->orWhere('unique_code', 'like', '%' . $search . '%');
+        //     //     });
+        //     // })
+        //     ->orderBy('updated_at', 'desc')
+        //     ->get();
+
+        // $totalProductIn = (clone $queryTransaction)->where('type', 'in')->sum('qty');
+        // $totalProductOut = (clone $queryTransaction)->where('type', 'out')->sum('qty');
+        // $productManyStock = $this->getManyStock();
+        // $formatProductStock = $this->formatProductStock($productManyStock);
+
+        // $topProducts = $this->getTopProducts();
+        // $formatTopProducts = $this->formatTopProducts();
+        // return response()->json([
+        //     'start_date' => $startDate,
+        //     'end_date' => $endDate,
+        //     'total_product_in' => $totalProductIn,
+        //     'total_product_out' => $totalProductOut,
+        //     'product_many_stock' => $formatProductStock,
+        //     'top_products' => $formatTopProducts,
+        // ]);
         $result = GeminiResult::where('status', 'completed')
             ->latest()
             ->first();
@@ -77,26 +112,26 @@ class GeminiController extends BaseController
         $search = '';
 
         $startDate = Carbon::now()
-            ->startOfMonth()
-            ->toDateString();
+            ->startOfMonth();
 
-        $endDate = Carbon::now()
-            ->toDateString();
+
+        $endDate = Carbon::now();
+
 
         $queryTransaction = Transaction::with('item')
             ->whereBetween('updated_at', [$startDate, $endDate])
             ->where('status', 'success')
-            ->when($search, function ($query) use ($search) {
-                return $query->whereHas('item', function ($query) use ($search) {
-                    $query->where('name', 'like', '%' . $search . '%')
-                        ->orWhere('unique_code', 'like', '%' . $search . '%');
-                });
-            })
-            ->orderBy('updated_at', 'desc');
+            // ->when($search, function ($query) use ($search) {
+            //     return $query->whereHas('item', function ($query) use ($search) {
+            //         $query->where('name', 'like', '%' . $search . '%')
+            //             ->orWhere('unique_code', 'like', '%' . $search . '%');
+            //     });
+            // })
+            ->orderBy('updated_at', 'desc')
+            ->get();
 
         $totalProductIn = (clone $queryTransaction)->where('type', 'in')->sum('qty');
         $totalProductOut = (clone $queryTransaction)->where('type', 'out')->sum('qty');
-
         $productManyStock = $this->getManyStock();
         $formatProductStock = $this->formatProductStock($productManyStock);
 

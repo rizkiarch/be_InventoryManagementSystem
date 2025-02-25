@@ -1,0 +1,2 @@
+# * * * * * www-data cd /var/www && php artisan schedule:run >> /dev/stdout 2>&1
+* * * * * cd /var/www && /usr/local/bin/php artisan schedule:run > /dev/stdout 2>&1

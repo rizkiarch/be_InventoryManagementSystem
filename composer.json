@@ -2,9 +2,9 @@
     "$schema": "https://getcomposer.org/schema.json",
     "name": "laravel/laravel",
     "type": "project",
-    "description": "The skeleton application for the Laravel framework.",
+    "description": "Made by Muhamad Rizki.",
     "keywords": ["laravel", "framework"],
-    "license": "MIT",
+    "license": "Muhamad Rizki - Ikay",
     "require": {
         "php": "^8.2",
         "barryvdh/laravel-dompdf": "^3.1",
