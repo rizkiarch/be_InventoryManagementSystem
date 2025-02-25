@@ -1,4 +1,4 @@
-# 🚀 Project Name
+# 🚀 Inventory Management System
 
 ![Laravel](https://img.shields.io/badge/Laravel-11-red?style=flat&logo=laravel)
 
